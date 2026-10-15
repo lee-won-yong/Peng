@@ -3,6 +3,8 @@
 .flutter-plugins-dependencies
 .packages
 build/
+data/*.sqlite
+data/*.sqlite-*
 pubspec.lock
 
 android/.gradle/

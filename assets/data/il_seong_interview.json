@@ -1,0 +1,113 @@
+{
+  "id": "ktv-il-seong-2020-v1",
+  "source": "사용자가 제공한 2020년 KTV 인터뷰 인용문 (원문 링크 미제공, 외부 검증 안 함)",
+  "text": "Park Il-seong, a longtime owner of noodle shop \"Il-seong Sanghoe,\" recalled in a 2020 KTV interview that customers once lined the alley.\n\n\"There were even pickpockets because there were so many people,\" he said in the interview.",
+  "translation": "국숫집 “일성상회”를 오랫동안 운영해 온 박일성 씨는 2020년 KTV 인터뷰에서 한때 손님들이 골목에 줄을 섰다고 회상했다. 그는 인터뷰에서 “사람이 너무 많아서 소매치기까지 있었어요”라고 말했다.",
+  "notes": [
+    "Park Il-seong, Il-seong Sanghoe, KTV는 고유명사이므로 학습 단어에서 제외했습니다.",
+    "recalled → recall, customers → customer, lined → line, pickpockets → pickpocket으로 기본형을 정리했습니다.",
+    "lined the alley: 골목에 줄지어 섰다.",
+    "so many people: 매우 많은 사람들.",
+    "한국어 인명·상호 표기는 제공된 영문을 바탕으로 옮겼습니다."
+  ],
+  "words": [
+    {
+      "word": "longtime",
+      "meaning": "오랜 기간의",
+      "example": "Park Il-seong, a longtime owner of noodle shop \"Il-seong Sanghoe,\" recalled in a 2020 KTV interview that customers once lined the alley.",
+      "correct": 0,
+      "wrong": 0
+    },
+    {
+      "word": "owner",
+      "meaning": "주인, 소유자",
+      "example": "Park Il-seong, a longtime owner of noodle shop \"Il-seong Sanghoe,\" recalled in a 2020 KTV interview that customers once lined the alley.",
+      "correct": 0,
+      "wrong": 0
+    },
+    {
+      "word": "noodle",
+      "meaning": "국수, 면",
+      "example": "Park Il-seong, a longtime owner of noodle shop \"Il-seong Sanghoe,\" recalled in a 2020 KTV interview that customers once lined the alley.",
+      "correct": 0,
+      "wrong": 0
+    },
+    {
+      "word": "shop",
+      "meaning": "가게",
+      "example": "Park Il-seong, a longtime owner of noodle shop \"Il-seong Sanghoe,\" recalled in a 2020 KTV interview that customers once lined the alley.",
+      "correct": 0,
+      "wrong": 0
+    },
+    {
+      "word": "recall",
+      "meaning": "회상하다, 기억해 내다",
+      "example": "Park Il-seong, a longtime owner of noodle shop \"Il-seong Sanghoe,\" recalled in a 2020 KTV interview that customers once lined the alley.",
+      "correct": 0,
+      "wrong": 0
+    },
+    {
+      "word": "interview",
+      "meaning": "인터뷰, 면담",
+      "example": "Park Il-seong, a longtime owner of noodle shop \"Il-seong Sanghoe,\" recalled in a 2020 KTV interview that customers once lined the alley.",
+      "correct": 0,
+      "wrong": 0
+    },
+    {
+      "word": "customer",
+      "meaning": "손님, 고객",
+      "example": "Park Il-seong, a longtime owner of noodle shop \"Il-seong Sanghoe,\" recalled in a 2020 KTV interview that customers once lined the alley.",
+      "correct": 0,
+      "wrong": 0
+    },
+    {
+      "word": "once",
+      "meaning": "한때, 예전에",
+      "example": "Park Il-seong, a longtime owner of noodle shop \"Il-seong Sanghoe,\" recalled in a 2020 KTV interview that customers once lined the alley.",
+      "correct": 0,
+      "wrong": 0
+    },
+    {
+      "word": "line",
+      "meaning": "줄지어 서다",
+      "example": "Park Il-seong, a longtime owner of noodle shop \"Il-seong Sanghoe,\" recalled in a 2020 KTV interview that customers once lined the alley.",
+      "correct": 0,
+      "wrong": 0
+    },
+    {
+      "word": "alley",
+      "meaning": "골목",
+      "example": "Park Il-seong, a longtime owner of noodle shop \"Il-seong Sanghoe,\" recalled in a 2020 KTV interview that customers once lined the alley.",
+      "correct": 0,
+      "wrong": 0
+    },
+    {
+      "word": "even",
+      "meaning": "심지어",
+      "example": "\"There were even pickpockets because there were so many people,\" he said in the interview.",
+      "correct": 0,
+      "wrong": 0
+    },
+    {
+      "word": "pickpocket",
+      "meaning": "소매치기",
+      "example": "\"There were even pickpockets because there were so many people,\" he said in the interview.",
+      "correct": 0,
+      "wrong": 0
+    },
+    {
+      "word": "because",
+      "meaning": "~ 때문에, ~이므로",
+      "example": "\"There were even pickpockets because there were so many people,\" he said in the interview.",
+      "correct": 0,
+      "wrong": 0
+    },
+    {
+      "word": "people",
+      "meaning": "사람들",
+      "example": "\"There were even pickpockets because there were so many people,\" he said in the interview.",
+      "correct": 0,
+      "wrong": 0
+    }
+  ]
+}

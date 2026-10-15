@@ -1,0 +1,225 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1792051785658,
+  "projectRoot": "/Users/1004630/project/PENG",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "assets",
+      "lib",
+      "scripts",
+      "test"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "android": {
+      "path": "android",
+      "purpose": null,
+      "fileCount": 8,
+      "lastAccessed": 1792051785555,
+      "keyFiles": [
+        "build.gradle.kts",
+        "gradle.properties",
+        "gradlew",
+        "gradlew.bat",
+        "local.properties"
+      ]
+    },
+    "assets": {
+      "path": "assets",
+      "purpose": "Static assets",
+      "fileCount": 0,
+      "lastAccessed": 1792051785555,
+      "keyFiles": []
+    },
+    "build": {
+      "path": "build",
+      "purpose": "Build output",
+      "fileCount": 0,
+      "lastAccessed": 1792051785556,
+      "keyFiles": []
+    },
+    "data": {
+      "path": "data",
+      "purpose": "Data files",
+      "fileCount": 1,
+      "lastAccessed": 1792051785557,
+      "keyFiles": [
+        "peng.sqlite"
+      ]
+    },
+    "ios": {
+      "path": "ios",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1792051785557,
+      "keyFiles": [
+        "Podfile",
+        "Podfile.lock"
+      ]
+    },
+    "lib": {
+      "path": "lib",
+      "purpose": "Library code",
+      "fileCount": 3,
+      "lastAccessed": 1792051785557,
+      "keyFiles": [
+        "learning_database.dart",
+        "main.dart",
+        "vocabulary_service.dart"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 2,
+      "lastAccessed": 1792051785558,
+      "keyFiles": [
+        "build_interview_db.py",
+        "check_learning_sqlite.py"
+      ]
+    },
+    "test": {
+      "path": "test",
+      "purpose": "Test files",
+      "fileCount": 4,
+      "lastAccessed": 1792051785558,
+      "keyFiles": [
+        "extraction_flow_test.dart",
+        "vocabulary_service_check.dart",
+        "widget_test.dart",
+        "word_tools_test.dart"
+      ]
+    },
+    "android/app": {
+      "path": "android/app",
+      "purpose": "Application code",
+      "fileCount": 1,
+      "lastAccessed": 1792051785559,
+      "keyFiles": [
+        "build.gradle.kts"
+      ]
+    },
+    "assets/data": {
+      "path": "assets/data",
+      "purpose": "Data files",
+      "fileCount": 1,
+      "lastAccessed": 1792051785560,
+      "keyFiles": [
+        "il_seong_interview.json"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "lib/main.dart",
+      "accessCount": 75,
+      "lastAccessed": 1792059037217,
+      "type": "file"
+    },
+    {
+      "path": "pubspec.yaml",
+      "accessCount": 5,
+      "lastAccessed": 1792057238433,
+      "type": "file"
+    },
+    {
+      "path": "test/settings_reset_test.dart",
+      "accessCount": 3,
+      "lastAccessed": 1792057368272,
+      "type": "file"
+    },
+    {
+      "path": "lib/vocabulary_service.dart",
+      "accessCount": 2,
+      "lastAccessed": 1792054374002,
+      "type": "file"
+    },
+    {
+      "path": "test/extraction_flow_test.dart",
+      "accessCount": 2,
+      "lastAccessed": 1792058138675,
+      "type": "file"
+    },
+    {
+      "path": "lib/learning_database.dart",
+      "accessCount": 1,
+      "lastAccessed": 1792052916957,
+      "type": "file"
+    },
+    {
+      "path": "assets/data/il_seong_interview.json",
+      "accessCount": 1,
+      "lastAccessed": 1792052923472,
+      "type": "file"
+    },
+    {
+      "path": "test/vocabulary_service_check.dart",
+      "accessCount": 1,
+      "lastAccessed": 1792052925581,
+      "type": "file"
+    },
+    {
+      "path": "test/widget_test.dart",
+      "accessCount": 1,
+      "lastAccessed": 1792052925947,
+      "type": "file"
+    },
+    {
+      "path": "test/word_tools_test.dart",
+      "accessCount": 1,
+      "lastAccessed": 1792052936956,
+      "type": "file"
+    },
+    {
+      "path": "test/word_example_test.dart",
+      "accessCount": 1,
+      "lastAccessed": 1792052937298,
+      "type": "file"
+    },
+    {
+      "path": "README.md",
+      "accessCount": 1,
+      "lastAccessed": 1792052942485,
+      "type": "file"
+    },
+    {
+      "path": "assets/characters/README.md",
+      "accessCount": 1,
+      "lastAccessed": 1792054161024,
+      "type": "file"
+    },
+    {
+      "path": "android/app/src/main/AndroidManifest.xml",
+      "accessCount": 1,
+      "lastAccessed": 1792057396188,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}
