@@ -7,6 +7,12 @@ data/*.sqlite
 data/*.sqlite-*
 pubspec.lock
 
+# Local API keys and environment settings
+env.local.json
+.env
+.env.*
+!.env.example
+
 android/.gradle/
 android/local.properties
 ios/Flutter/Generated.xcconfig

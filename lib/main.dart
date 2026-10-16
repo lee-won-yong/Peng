@@ -11,13 +11,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'vocabulary_service.dart';
 import 'learning_database.dart';
+import 'book_splash.dart';
+import 'character_puzzle.dart';
+import 'ar_level.dart';
 
 void main() {
   runApp(const PengApp());
 }
 
 const _storageKey = 'peng_words_v1';
-const _apiKeyStorageKey = 'peng_openai_key_v1';
+const _environmentApiKey = String.fromEnvironment('OPENAI_API_KEY');
+const _arLevelStorageKey = 'peng_ar_level_v1';
 const _parentPhoneStorageKey = 'peng_parent_phone_v1';
 const _completedDatesStorageKey = 'peng_completed_dates_v1';
 const _openAiModel = 'gpt-4o-mini';
@@ -171,7 +175,9 @@ class PengApp extends StatelessWidget {
 }
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.imagePicker});
+
+  final ImagePicker? imagePicker;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -180,8 +186,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final _database = LearningDatabase();
   bool _databaseReady = false;
+  bool _showSplash = true;
   bool _isResettingData = false;
-  final _picker = ImagePicker();
+  late final _picker = widget.imagePicker ?? ImagePicker();
   final _tts = FlutterTts();
   final _textController = TextEditingController();
 
@@ -192,8 +199,9 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 2;
   String? _selectedStudyDate;
   String? _statusMessage;
-  String _apiKey = '';
+  final String _apiKey = _environmentApiKey.trim();
   String _parentPhone = '';
+  ArLevelRange _arLevel = ArLevelRange.defaultValue;
   Set<String> _completedDates = <String>{};
 
   @override
@@ -212,13 +220,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _initializeLearning() async {
+    final splashDelay = Future<void>.delayed(
+      const Duration(milliseconds: 1400),
+    );
     try {
-      await _loadApiKey();
+      await _loadSettings();
     } catch (_) {
       _showStatus('설정을 불러오지 못했어요.');
     }
     if (!mounted) return;
     await _loadWords();
+    await splashDelay;
+    if (!mounted) return;
+    setState(() => _showSplash = false);
     if (mounted) await _completeMissingWords();
   }
 
@@ -345,17 +359,18 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _loadApiKey() async {
+  Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    final key = prefs.getString(_apiKeyStorageKey) ?? '';
     final phone = prefs.getString(_parentPhoneStorageKey) ?? '';
-    final completed = prefs.getStringList(_completedDatesStorageKey) ?? const [];
+    final arLevel = ArLevelRange.decode(prefs.getString(_arLevelStorageKey));
+    final completed =
+        prefs.getStringList(_completedDatesStorageKey) ?? const [];
     if (!mounted) {
       return;
     }
     setState(() {
-      _apiKey = key;
       _parentPhone = phone;
+      _arLevel = arLevel;
       _completedDates = completed.toSet();
     });
   }
@@ -369,16 +384,11 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _completedDates = updated);
   }
 
-  Future<void> _saveApiKey(String key) async {
+  Future<void> _saveArLevel(ArLevelRange level) async {
+    if (!level.isValid) return;
     final prefs = await SharedPreferences.getInstance();
-    final trimmed = key.trim();
-    await prefs.setString(_apiKeyStorageKey, trimmed);
-    if (!mounted) {
-      return;
-    }
-    setState(() => _apiKey = trimmed);
-    _showStatus('API 키를 저장했어요.');
-    await _completeMissingWords();
+    await prefs.setString(_arLevelStorageKey, level.encode());
+    if (mounted) setState(() => _arLevel = level);
   }
 
   Future<void> _saveParentPhone(String phone) async {
@@ -399,9 +409,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     final body = '엄마 아빠! 저 오늘 영어 퀴즈 $total문제 중 $correct개 맞췄어요! 🏆';
     // sms:번호?body=내용 (Android·iOS 공통 포맷)
-    final uri = Uri.parse(
-      'sms:$phone?body=${Uri.encodeComponent(body)}',
-    );
+    final uri = Uri.parse('sms:$phone?body=${Uri.encodeComponent(body)}');
     try {
       final launched = await launchUrl(
         uri,
@@ -466,10 +474,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _pickAndScan(ImageSource source) async {
-    if (_apiKey.trim().isEmpty) {
-      _showStatus('먼저 오른쪽 위 ⚙️ 설정에서 OpenAI API 키를 입력해 주세요.');
-      return;
-    }
+    if (_isScanning || _isLoadingWords || _isResettingData) return;
 
     setState(() {
       _isScanning = true;
@@ -477,8 +482,16 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      final image = await _picker.pickImage(source: source, imageQuality: 88);
-      if (image == null) {
+      final image = await _picker.pickImage(
+        source: source,
+        imageQuality: 88,
+        requestFullMetadata: false,
+      );
+      if (!mounted || image == null) {
+        return;
+      }
+      if (_apiKey.isEmpty) {
+        _showStatus('사진을 선택했지만 글자 인식이 아직 설정되지 않았어요.');
         return;
       }
 
@@ -487,8 +500,24 @@ class _HomeScreenState extends State<HomeScreen> {
         _showStatus('이미지에서 영어 글자를 찾지 못했어요.');
         return;
       }
+      if (!mounted) return;
       _textController.text = text;
       await _mergeExtractedWords(text);
+    } on PlatformException catch (error) {
+      final message = switch (error.code) {
+        'camera_access_denied' =>
+          '카메라 권한이 꺼져 있어요. 기기 설정에서 Peng의 카메라 접근을 허용해 주세요.',
+        'photo_access_denied' => '사진 접근이 꺼져 있어요. 기기 설정에서 Peng의 사진 접근을 허용해 주세요.',
+        'camera_access_restricted' || 'photo_access_restricted' =>
+          '이 기기에서 사진 접근이 제한되어 있어요. 스크린 타임이나 기기 관리 설정을 확인해 주세요.',
+        'camera_unavailable' ||
+        'no_available_camera' => '카메라를 사용할 수 없어요. 앨범에서 사진을 선택해 주세요.',
+        'multiple_request' || 'already_active' => '이미 사진 선택 화면이 열려 있어요.',
+        _ => '사진을 열지 못했어요. 다시 시도해 주세요.',
+      };
+      _showStatus(message);
+    } on MissingPluginException {
+      _showStatus('사진 기능을 불러오지 못했어요. 앱을 완전히 종료한 뒤 다시 실행해 주세요.');
     } catch (error) {
       _showStatus('사진에서 글자를 읽지 못했어요: $error');
     } finally {
@@ -501,10 +530,10 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openSettings() {
     showDialog<void>(
       context: context,
-      builder: (_) => ApiKeyDialog(
-        initialKey: _apiKey,
+      builder: (_) => SettingsDialog(
         initialPhone: _parentPhone,
-        onSaved: _saveApiKey,
+        initialArLevel: _arLevel,
+        onSavedArLevel: _saveArLevel,
         onSavedPhone: _saveParentPhone,
         onResetData: _resetLearningData,
       ),
@@ -538,9 +567,9 @@ class _HomeScreenState extends State<HomeScreen> {
         _selectedIndex = 2;
         _statusMessage = null;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('학습 데이터를 초기화했어요. API 키는 유지됩니다.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('학습 데이터를 초기화했어요.')));
       return true;
     } catch (_) {
       if (mounted) {
@@ -557,7 +586,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _mergeExtractedWords(
     String text, {
     bool openQuiz = true,
-    bool force = false,
   }) async {
     if (_preparationMessage != null || _isResettingData) return;
     if (!_databaseReady) {
@@ -569,32 +597,21 @@ class _HomeScreenState extends State<HomeScreen> {
       _showStatus('추출할 영어 단어가 없어요. 영어 문장을 입력해 주세요.');
       return;
     }
-    // 강제 반영은 실제 생성 시도가 가능한 경우(API 키 존재)에만 적용한다.
-    // 키가 없으면 기존처럼 "키 등록" 안내 흐름을 탄다.
-    final effectiveForce = force && _apiKey.trim().isNotEmpty;
     setState(() {
       _isScanning = true;
       _statusMessage = null;
     });
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _preparationMessage = '단어를 분석하고 뜻과 예문을 만들고 있어요…');
-    var enrichAfter = false;
     try {
-      List<Map<String, Object?>> generated;
-      try {
-        generated = await VocabularyService().generate(
-          text: text,
-          apiKey: _apiKey,
-        );
-      } catch (_) {
-        // 직접 입력(force)은 API가 실패해도 단어를 그대로 반영한다
-        if (!effectiveForce) rethrow;
-        generated = const [];
-      }
+      final generated = await VocabularyService().generate(
+        text: text,
+        apiKey: _apiKey,
+        arLevel: _arLevel,
+      );
       if (!mounted) return;
-      // 직접 입력은 생성 결과가 비어도 막지 않고 무조건 반영한다
-      if (generated.isEmpty && !effectiveForce) {
-        _showStatus('이 문장에서 학습할 단어를 찾지 못했어요. 다른 문장을 넣어 주세요.');
+      if (generated.isEmpty) {
+        _showStatus('${_arLevel.label} 수준에 맞는 단어를 찾지 못했어요. 다른 글이나 AR 수준을 선택해 주세요.');
         return;
       }
       final current = {for (final word in _words) word.word: word};
@@ -608,31 +625,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 dates: openQuiz
                     ? {...previous.dates, studyDate}.toList()
                     : previous.dates,
-                meaning: previous.meaning.isEmpty
+                meaning: openQuiz || previous.meaning.isEmpty
                     ? word.meaning
                     : previous.meaning,
-                example: previous.example.isEmpty
+                example: openQuiz || previous.example.isEmpty
                     ? word.example
                     : previous.example,
               );
       }
-      // 직접 입력: 생성 결과와 무관하게 추출된 단어를 모두 반영
-      if (effectiveForce) {
-        for (final w in extracted) {
-          final previous = current[w];
-          if (previous == null) {
-            current[w] = VocabWord(
-              word: w,
-              dates: openQuiz ? [studyDate] : const [],
-            );
-          } else if (openQuiz && !previous.dates.contains(studyDate)) {
-            current[w] = previous.copyWith(
-              dates: {...previous.dates, studyDate}.toList(),
-            );
-          }
-        }
-      }
-      final reflectedCount = effectiveForce ? extracted.length : generated.length;
+      final reflectedCount = generated.length;
       setState(() {
         _words = current.values.toList()
           ..sort((a, b) => a.word.compareTo(b.word));
@@ -640,8 +641,6 @@ class _HomeScreenState extends State<HomeScreen> {
       });
       final saved = await _saveWords();
       if (!mounted || !saved) return;
-      // 반영된 빈 단어들의 뜻/예문은 이후 best-effort로 채운다
-      enrichAfter = effectiveForce;
       if (openQuiz) {
         setState(() {
           _selectedIndex = 2;
@@ -652,16 +651,14 @@ class _HomeScreenState extends State<HomeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            effectiveForce
-                ? '$reflectedCount개 단어를 학습 목록에 반영했어요.'
-                : '$reflectedCount개 단어의 뜻과 예문을 준비했어요.',
+            '${_arLevel.label} 기준으로 $reflectedCount개 단어의 뜻과 예문을 준비했어요.',
           ),
         ),
       );
     } catch (_) {
       if (!mounted) return;
       final message = _apiKey.isEmpty
-          ? '새 학습 자료를 준비하려면 설정에서 API 키를 등록해 주세요. 준비된 퀴즈는 바로 풀 수 있어요.'
+          ? '새 학습 자료를 준비할 수 없어요. 준비된 퀴즈는 바로 풀 수 있어요.'
           : '뜻과 예문을 준비하지 못했어요. 연결과 API 설정을 확인하고 다시 시도해 주세요.';
       _showStatus(message);
       ScaffoldMessenger.of(
@@ -673,8 +670,6 @@ class _HomeScreenState extends State<HomeScreen> {
           _isScanning = false;
           _preparationMessage = null;
         });
-        // 강제 반영된 빈 단어들의 뜻/예문을 best-effort로 보완
-        if (enrichAfter) _completeMissingWords();
       }
     }
   }
@@ -729,6 +724,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_showSplash) return const BookSplash();
     final dayWords = _words
         .where((word) => word.dates.contains(_selectedStudyDate))
         .toList();
@@ -740,7 +736,8 @@ class _HomeScreenState extends State<HomeScreen> {
         textController: _textController,
         onCamera: () => _pickAndScan(ImageSource.camera),
         onGallery: () => _pickAndScan(ImageSource.gallery),
-        onUseText: () => _mergeExtractedWords(_textController.text, force: true),
+        onUseText: () =>
+            _mergeExtractedWords(_textController.text),
       ),
       _selectedStudyDate == null
           ? StudyDatesPage(
@@ -1147,6 +1144,11 @@ class _QuizPageState extends State<QuizPage> {
   static const int _sessionLength = 10; // 10문제 통과하면 학습 종료
 
   final _random = Random();
+  late CharacterRegion _puzzleCharacter;
+  int _puzzleCharacterIndex = -1;
+  final _revealedPieces = <int>{};
+  late List<int> _revealOrder;
+  int? _newlyRevealedPiece;
   VocabWord? _question;
   List<VocabWord> _choices = <VocabWord>[];
   String? _result;
@@ -1161,7 +1163,20 @@ class _QuizPageState extends State<QuizPage> {
   @override
   void initState() {
     super.initState();
+    _resetPuzzle();
     _nextQuestion();
+  }
+
+  void _resetPuzzle() {
+    final count = characterRegions.length;
+    _puzzleCharacterIndex = _puzzleCharacterIndex < 0
+        ? _random.nextInt(count)
+        : (_puzzleCharacterIndex + 1 + _random.nextInt(count - 1)) % count;
+    _puzzleCharacter = characterRegions[_puzzleCharacterIndex];
+    _revealOrder = List.generate(CharacterPuzzle.pieceCount, (index) => index)
+      ..shuffle(_random);
+    _revealedPieces.clear();
+    _newlyRevealedPiece = null;
   }
 
   void _restartSession() {
@@ -1170,6 +1185,7 @@ class _QuizPageState extends State<QuizPage> {
       _correctCount = 0;
       _finished = false;
       _askedWords.clear();
+      _resetPuzzle();
     });
     _nextQuestion();
   }
@@ -1177,6 +1193,7 @@ class _QuizPageState extends State<QuizPage> {
   @override
   void didUpdateWidget(covariant QuizPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (_finished || _isAnswering) return;
     if (oldWidget.words.length != widget.words.length ||
         (_question == null &&
             widget.words
@@ -1191,6 +1208,7 @@ class _QuizPageState extends State<QuizPage> {
   }
 
   void _nextQuestion() {
+    if (_finished || _isAnswering) return;
     // 10문제를 모두 풀었으면 학습 종료 화면으로 전환
     if (_answered >= _sessionLength) {
       setState(() {
@@ -1249,7 +1267,11 @@ class _QuizPageState extends State<QuizPage> {
 
   Future<void> _answer(VocabWord choice) async {
     final question = _question;
-    if (question == null || _result != null || _isAnswering) {
+    if (question == null ||
+        _result != null ||
+        _isAnswering ||
+        _finished ||
+        _answered >= _sessionLength) {
       return;
     }
 
@@ -1267,7 +1289,11 @@ class _QuizPageState extends State<QuizPage> {
       _isAnswering = false;
       if (saved) {
         _answered += 1;
-        if (isCorrect) _correctCount += 1;
+        if (isCorrect) {
+          _newlyRevealedPiece = _revealOrder[_correctCount];
+          _revealedPieces.add(_newlyRevealedPiece!);
+          _correctCount += 1;
+        }
         _result = isCorrect ? '정답!' : '다시 볼 단어예요';
       }
     });
@@ -1297,7 +1323,12 @@ class _QuizPageState extends State<QuizPage> {
           scale: curved.value,
           child: Opacity(
             opacity: animation.value.clamp(0.0, 1.0),
-            child: _PraiseDialog(seed: _answered),
+            child: _PraiseDialog(
+              seed: _answered,
+              character: _puzzleCharacter,
+              revealedPieces: Set.unmodifiable(_revealedPieces),
+              newlyRevealedPiece: _newlyRevealedPiece,
+            ),
           ),
         );
       },
@@ -1322,6 +1353,8 @@ class _QuizPageState extends State<QuizPage> {
     // 10문제를 모두 푼 뒤 학습 종료 화면
     if (_finished) {
       return _QuizCompleteView(
+        character: _puzzleCharacter,
+        revealedPieces: Set.unmodifiable(_revealedPieces),
         correct: _correctCount,
         total: _sessionLength,
         onRestart: _restartSession,
@@ -1356,7 +1389,7 @@ class _QuizPageState extends State<QuizPage> {
             ),
             const SizedBox(width: 8),
             Text(
-              '${_answered + 1} / $_sessionLength',
+              '${_answered + (_result == null ? 1 : 0)} / $_sessionLength',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
                 color: Theme.of(context).colorScheme.primary,
@@ -1371,6 +1404,32 @@ class _QuizPageState extends State<QuizPage> {
             value: _answered / _sessionLength,
             minHeight: 6,
           ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            CharacterPuzzle(
+              character: _puzzleCharacter,
+              revealedPieces: Set.unmodifiable(_revealedPieces),
+              size: 96,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '비밀 캐릭터를 찾아요!',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 6),
+                  Text('${_revealedPieces.length} / 10 조각 공개'),
+                  const SizedBox(height: 4),
+                  const Text('정답마다 한 조각씩 열려요.'),
+                ],
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 18),
         Card(
@@ -1469,9 +1528,7 @@ class _QuizPageState extends State<QuizPage> {
           const SizedBox(height: 12),
           FilledButton(
             onPressed: _nextQuestion,
-            child: Text(
-              _answered >= _sessionLength ? '결과 보기' : '다음 문제',
-            ),
+            child: Text(_answered >= _sessionLength ? '결과 보기' : '다음 문제'),
           ),
         ],
       ],
@@ -1479,13 +1536,19 @@ class _QuizPageState extends State<QuizPage> {
   }
 }
 
-/// 정답 시 등장해 칭찬하는 캐릭터 팝업.
-/// assets/characters/ 에 PNG(brawl1.png~brawl5.png)를 넣으면 캐릭터로 교체되고,
-/// 파일이 없으면 이모지 폴백으로 표시된다.
+/// Correct answers reveal one more tile of the session's character.
 class _PraiseDialog extends StatelessWidget {
-  const _PraiseDialog({required this.seed});
+  const _PraiseDialog({
+    required this.seed,
+    required this.character,
+    required this.revealedPieces,
+    required this.newlyRevealedPiece,
+  });
 
   final int seed;
+  final CharacterRegion character;
+  final Set<int> revealedPieces;
+  final int? newlyRevealedPiece;
 
   static const List<String> _praises = <String>[
     '정답! 완전 레전드예요! 🏆',
@@ -1495,67 +1558,43 @@ class _PraiseDialog extends StatelessWidget {
     '굿! 이대로만 가보자고!',
   ];
 
-  // assets/characters/ 에 넣을 캐릭터 파일 이름(없으면 이모지 폴백)
-  static const List<String> _characterAssets = <String>[
-    'assets/characters/brawl1.png',
-    'assets/characters/brawl2.png',
-    'assets/characters/brawl3.png',
-    'assets/characters/brawl4.png',
-    'assets/characters/brawl5.png',
-  ];
-
-  static const List<String> _fallbackEmoji = <String>['🐻', '🦊', '⭐', '🔥', '🎯'];
-
   @override
   Widget build(BuildContext context) {
-    final index = (seed.abs()) % _characterAssets.length;
     final praise = _praises[(seed.abs()) % _praises.length];
 
-    return Center(
-      child: Material(
-        color: Colors.transparent,
-        child: Container(
-          width: 280,
-          padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: const [
-              BoxShadow(color: Colors.black26, blurRadius: 24, spreadRadius: 2),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                height: 140,
-                child: Image.asset(
-                  _characterAssets[index],
-                  fit: BoxFit.contain,
-                  // PNG가 아직 없을 때 이모지로 대체
-                  errorBuilder: (context, error, stack) => Center(
-                    child: Text(
-                      _fallbackEmoji[index % _fallbackEmoji.length],
-                      style: const TextStyle(fontSize: 96),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                praise,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 18),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('계속하기'),
-              ),
-            ],
-          ),
+    return Dialog(
+      constraints: const BoxConstraints(maxWidth: 320),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CharacterPuzzle(
+              character: character,
+              revealedPieces: revealedPieces,
+              newlyRevealedPiece: newlyRevealedPiece,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              revealedPieces.length == 10
+                  ? '${character.name} 완성!'
+                  : '${revealedPieces.length} / 10 조각 공개!',
+            ),
+            const SizedBox(height: 16),
+            Text(
+              praise,
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 18),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('계속하기'),
+            ),
+          ],
         ),
       ),
     );
@@ -1565,6 +1604,8 @@ class _PraiseDialog extends StatelessWidget {
 /// 10문제를 모두 푼 뒤 보여주는 학습 종료 화면.
 class _QuizCompleteView extends StatelessWidget {
   const _QuizCompleteView({
+    required this.character,
+    required this.revealedPieces,
     required this.correct,
     required this.total,
     required this.onRestart,
@@ -1572,6 +1613,8 @@ class _QuizCompleteView extends StatelessWidget {
     required this.onSend,
   });
 
+  final CharacterRegion character;
+  final Set<int> revealedPieces;
   final int correct;
   final int total;
   final VoidCallback onRestart;
@@ -1582,21 +1625,28 @@ class _QuizCompleteView extends StatelessWidget {
   Widget build(BuildContext context) {
     final allPerfect = correct == total;
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            CharacterPuzzle(
+              character: character,
+              revealedPieces: revealedPieces,
+              size: 160,
+            ),
+            const SizedBox(height: 8),
             Text(
-              allPerfect ? '🏆' : '🎉',
-              style: const TextStyle(fontSize: 96),
+              revealedPieces.length == 10
+                  ? '${character.name} 완성!'
+                  : '${revealedPieces.length} / 10 조각을 찾았어요!',
             ),
             const SizedBox(height: 12),
             Text(
               '학습 완료!',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 8),
             Text(
@@ -1635,42 +1685,40 @@ class _QuizCompleteView extends StatelessWidget {
   }
 }
 
-class ApiKeyDialog extends StatefulWidget {
-  const ApiKeyDialog({
-    required this.initialKey,
+class SettingsDialog extends StatefulWidget {
+  const SettingsDialog({
     required this.initialPhone,
-    required this.onSaved,
+    this.initialArLevel = ArLevelRange.defaultValue,
+    this.onSavedArLevel,
     required this.onSavedPhone,
     required this.onResetData,
     super.key,
   });
 
-  final String initialKey;
   final String initialPhone;
-  final ValueChanged<String> onSaved;
+  final ArLevelRange initialArLevel;
+  final ValueChanged<ArLevelRange>? onSavedArLevel;
   final ValueChanged<String> onSavedPhone;
   final Future<bool> Function() onResetData;
 
   @override
-  State<ApiKeyDialog> createState() => _ApiKeyDialogState();
+  State<SettingsDialog> createState() => _SettingsDialogState();
 }
 
-class _ApiKeyDialogState extends State<ApiKeyDialog> {
-  late final TextEditingController _controller;
+class _SettingsDialogState extends State<SettingsDialog> {
   late final TextEditingController _phoneController;
-  bool _obscure = true;
   bool _resetting = false;
+  late ArLevelRange _arLevel;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.initialKey);
     _phoneController = TextEditingController(text: widget.initialPhone);
+    _arLevel = widget.initialArLevel;
   }
 
   @override
   void dispose() {
-    _controller.dispose();
     _phoneController.dispose();
     super.dispose();
   }
@@ -1680,9 +1728,7 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
       context: context,
       builder: (confirmationContext) => AlertDialog(
         title: const Text('학습 데이터를 초기화할까요?'),
-        content: const Text(
-          '모든 단어, 예문, 날짜별 학습 데이터와 퀴즈 기록이 삭제됩니다. 되돌릴 수 없어요.\n\nAPI 키는 유지됩니다.',
-        ),
+        content: const Text('모든 단어, 예문, 날짜별 학습 데이터와 퀴즈 기록이 삭제됩니다. 되돌릴 수 없어요.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(confirmationContext, false),
@@ -1712,26 +1758,24 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '사진 글자 인식에 사용할 OpenAI API 키를 입력하세요.\n'
-            '키는 이 기기에만 저장됩니다.',
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            enabled: !_resetting,
-            controller: _controller,
-            obscureText: _obscure,
-            autocorrect: false,
-            enableSuggestions: false,
-            decoration: InputDecoration(
-              border: const OutlineInputBorder(),
-              labelText: 'sk-...',
-              suffixIcon: IconButton(
-                icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
-                onPressed: () => setState(() => _obscure = !_obscure),
-              ),
+          const Text('AR 목표 수준', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Text(_arLevel.label, key: const ValueKey('ar-level-label')),
+          RangeSlider(
+            values: RangeValues(_arLevel.minimum, _arLevel.maximum),
+            min: ArLevelRange.lowest,
+            max: ArLevelRange.highest,
+            divisions: 23,
+            labels: RangeLabels(
+              _arLevel.minimum.toStringAsFixed(1),
+              _arLevel.maximum.toStringAsFixed(1),
             ),
+            onChanged: _resetting ? null : (values) {
+              if (values.start >= values.end) return;
+              setState(() => _arLevel = ArLevelRange(values.start, values.end));
+            },
           ),
+          const Text('새로 추출하는 단어와 예문의 난이도에 적용돼요.'),
           const SizedBox(height: 24),
           const Divider(),
           const Text(
@@ -1757,7 +1801,7 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
           const Divider(),
           const Text('학습 데이터', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          const Text('단어와 퀴즈 기록을 모두 삭제합니다. API 키는 유지됩니다.'),
+          const Text('단어와 퀴즈 기록을 모두 삭제합니다.'),
           const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: _resetting ? null : _confirmReset,
@@ -1775,8 +1819,8 @@ class _ApiKeyDialogState extends State<ApiKeyDialog> {
           onPressed: _resetting
               ? null
               : () {
-                  widget.onSaved(_controller.text);
                   widget.onSavedPhone(_phoneController.text);
+                  widget.onSavedArLevel?.call(_arLevel);
                   Navigator.of(context).pop();
                 },
           child: const Text('저장'),
